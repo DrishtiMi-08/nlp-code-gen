@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
 
-const API_URL = 'https://railway.com/project/febceb98-9ab4-41ae-87dc-b9c2211d8cb9';
+const API_URL = 'https://nlp-code-gen.onrender.com/generate';
 
 export function activate(context: vscode.ExtensionContext) {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
