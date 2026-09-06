@@ -1,14 +1,66 @@
 import os
-import torch
+import re
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = os.getenv("MODEL_NAME", "Salesforce/codet5-base")
-DEVICE = torch.device("cpu")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-print(f"[model] Loading mock model (lightweight mode) ...")
-print(f"[model] Mock model ready.")
+SYSTEM_PROMPT = (
+    "You are a code generator embedded in a code editor. Given an instruction, "
+    "respond with ONLY the requested source code - no explanations, no markdown "
+    "code fences, no commentary before or after. In-code comments are fine."
+)
+
+if GROQ_API_KEY:
+    print("[model] GROQ_API_KEY found - live LLM generation enabled (mock model as fallback).")
+else:
+    print("[model] No GROQ_API_KEY set - using mock (keyword-matching) model only.")
+
+
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    match = re.match(r"^```[a-zA-Z0-9]*\n(.*)\n```$", text, re.DOTALL)
+    return match.group(1).strip() if match else text
+
+
+def _generate_with_groq(prompt: str, max_new_tokens: int) -> str | None:
+    if not GROQ_API_KEY:
+        return None
+    try:
+        resp = requests.post(
+            GROQ_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": GROQ_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": max_new_tokens,
+                "temperature": 0.2,
+            },
+            timeout=20,
+        )
+        if not resp.ok:
+            print(f"[model] Groq returned {resp.status_code}: {resp.text}")
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        code = _strip_code_fences(content)
+        return code if code.strip() else None
+    except Exception as e:
+        print(f"[model] Groq request failed, falling back to mock model: {e}")
+        return None
+
+
+def generate_code(prompt: str, max_new_tokens: int = 256) -> str:
+    llm_output = _generate_with_groq(prompt, max_new_tokens)
+    if llm_output:
+        return llm_output
+    return generate_code_mock(prompt, max_new_tokens)
 
 
 def detect_language(p: str) -> str:
@@ -19,7 +71,7 @@ def detect_language(p: str) -> str:
     return "python"
 
 
-def generate_code(prompt: str, max_new_tokens: int = 256) -> str:
+def generate_code_mock(prompt: str, max_new_tokens: int = 256) -> str:
     p = prompt.lower()
     lang = detect_language(p)
 
