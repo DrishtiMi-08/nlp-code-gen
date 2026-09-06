@@ -36,9 +36,9 @@ class GenerateRequest(BaseModel):
         examples=["reverse an array in C++"],
     )
     max_new_tokens: int = Field(
-        default=256,
+        default=1024,
         ge=32,
-        le=512,
+        le=2048,
         description="Max tokens the model can generate.",
     )
 
